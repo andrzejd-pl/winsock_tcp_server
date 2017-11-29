@@ -1,125 +1,241 @@
-#include "Packet.h"
+#include <iostream>
+#include <string>
+#include <ctime>
+#include <cctype>
+#include <WS2tcpip.h>
 #include <regex>
+#pragma comment (lib,"ws2_32.lib")
 
-
-Packet::Packet(std::string id,
-			   std::string operation,
-			   std::string time,
-			   std::string response) : id(id), operation(operation), time(time), response(response) {}
-
-Packet::Packet() {}
-
-Packet::Packet(const std::string& rawData) {
-	std::regex expresion("\\|"), sExpresion("#");
-	std::smatch match, sMatch;
-	std::string buffer = rawData;
-
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
+class BadPacketException : public std::exception
+{
+	void what()
 	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
-			throw BadPacketException();
-
-		if(sMatch.prefix().str() != "id")
-			throw BadPacketException();
-		
-		std::string sufix = sMatch.suffix().str();
-		id = sufix;
+		std::cout << "Bad packet!" << std::endl;
 	}
-	buffer = match.suffix().str();
 
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
+};
+
+class WSASession {
+private:
+	WSAData data;
+public:
+	WSASession() {
+		int ret = WSAStartup(MAKEWORD(2, 2), &data);
+		if (ret != 0)
+			throw std::system_error(WSAGetLastError(), std::system_category(), "WSAStartup Failed");
+	}
+
+	~WSASession() {
+		WSACleanup();
+	}
+
+};
+class TCPSocket
+{
+protected:
+	SOCKET sock;
+
+public:
+	// TWORZENIE SOCKETA
+	TCPSocket()
 	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
-			throw BadPacketException();
-		
-		if(sMatch.prefix().str() != "op")
-			throw BadPacketException();
-		
-		std::string sufix = sMatch.suffix().str();
-		operation = sufix;
+		sock = socket(AF_INET, SOCK_STREAM, 0);
+		if (sock == INVALID_SOCKET)
+			throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
 	}
-	buffer = match.suffix().str();
 
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
+	// DESTRUKTOR SOCKETU USUWANIE SOCKETA
+	~TCPSocket() {
+		closesocket(sock);
+	}
+
+	//	POLACZENIE Z SERWEREM
+	void connection(const std::string &IPAddress, const unsigned int port) const
 	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
-			throw BadPacketException();
-		
-		if(sMatch.prefix().str() != "time")
-			throw BadPacketException();
+		sockaddr_in hint;
+		hint.sin_family = AF_INET;
+		hint.sin_port = htons(port);
+		inet_pton(AF_INET, IPAddress.c_str(), &hint.sin_addr);
 
-		std::string sufix = sMatch.suffix().str();
-		time = sufix;
+		const int  connResult = connect(sock, (sockaddr*)&hint, sizeof(hint));
+		if (connResult == INVALID_SOCKET)
+		{
+			throw std::system_error(WSAGetLastError(), std::system_category(), "Error connection socket");
+		}
 	}
-	response = match.suffix().str();
+
+	//WYSYLANIE PAKIETU
+	void Send(const std::string &message)
+	{
+		/// NIE JESTEM PEWIEN CZY +1
+		const auto ret = send(sock, message.c_str(), message.size(), 0);
+		if (ret < 0)
+			throw std::system_error(WSAGetLastError(), std::system_category(), "sendto failed");
+	}
+
+	//OTRZYMYWANIE PAKIETU
+	void Recv(char buf[], unsigned bufLeng) const
+	{
+		int bytesReceived = recv(sock, buf, bufLeng, 0);
+	}
+};
+struct packet {
+private:
+	std::string id;
+	std::string operation;
+	std::string answer;
+	std::string time;
+public:
+	packet(const std::string &id_, const std::string &op_, const std::string &ans_, const std::string &tim_)
+	{
+		this->id = id_;
+		this->operation = op_;
+		this->answer = ans_;
+		this->time = tim_;
+	}
+	packet(const std::string& rawData) {
+
+		std::string message = rawData;
+		std::regex reg("[0-9a-zA-Z:\.]+(?=\\|)");
+		std::smatch match;
+
+		std::regex_search(message, match, reg);
+		id = match[0];
+		message = match.suffix();
+
+		std::regex_search(message, match, reg);
+		operation = match[0];
+		message = match.suffix();
+
+		std::regex_search(message, match, reg);
+		answer = match[0];
+		message = match.suffix();
+
+		std::regex_search(message, match, reg);
+		time = match[0];
+		message = match.suffix();
+	}
+
+
+
+	std::string getID() { return id; }
+	std::string getOperation() { return operation; }
+	std::string getAnswer() { return answer; }
+	std::string getTime() { return time; }
+	std::string convertToString()
+	{
+		return ("Id#" + id + "|Op#" + operation + "|Odp#" + answer + "|Czas#" + time + "|");
+	}
+};
+
+//generowanie id,			->GEN odpowiedź w polu IDENTYFIKATOR
+//przesłanie liczby L		->NUM, w polu ODPOWIEDZI
+//przesłanie liczby prób	->ATT  w polu ODPOWIEDZI
+//przesylanie wyniku		->TRY  w polu ODPOWIEDZI
+//odpowiedz na wynik		->ANS  w polu ODPOWIEDZI
+//zakonczenie polaczenia	->EXI  
+
+// Example:
+// id#01|op#GEN|time#12:00:00.000|odp#123123|
+const std::string ipAddress = "25.50.98.211";
+const unsigned int port = 19975;
+
+bool is_number(const std::string& s)
+{
+	return !s.empty() && std::find_if(s.begin(),
+		s.end(), [](char c) { return !std::isdigit(c); }) == s.end();
+}
+void requestID(TCPSocket &Socket)
+{
+	packet messagePakiet("0", "GEN", "00", "12:00:00.000");
+	std::string messageString = messagePakiet.convertToString();
+	Socket.Send(messageString);
+
+}
+void sendL(TCPSocket &Socket, std::string &id)
+{
+	std::string numberL = "a"; unsigned int division;
+	do
+	{
+		std::cout << "Podaj dodatnia parzysta liczbe L: ";
+		std::getline(std::cin, numberL);
+		division = std::stoi(numberL);
+
+	} while (!is_number(numberL) && division % 2 == 0);
+	packet messagePakiet(id, "NUM", numberL, "12:00:00.000");
+	std::string messageString = messagePakiet.convertToString();
+	Socket.Send(messageString);
+
+}
+void trial(TCPSocket &Socket, std::string &id)
+{
+	std::string numberToSend = "a"; unsigned int division;
+	do {
+		std::cout << "Sprobuj zgadnac liczbe: ";
+		getline(std::cin, numberToSend);
+		division = std::stoi(numberToSend);
+
+	} while (!is_number(numberToSend) && division % 2 == 0);
+
+	packet messagePakiet(id, "ATT", numberToSend, "12:00:00.000");
+	std::string messageString = messagePakiet.convertToString();
+	Socket.Send(messageString);
+}
+void disconnection(TCPSocket &Socket, std::string &id)
+{
+	packet messagePakiet(id, "EXIT", "0", "12:00:00.000");
+	std::string messageString = messagePakiet.convertToString();
+	Socket.Send(messageString);
+
 }
 
-Packet::Builder Packet::Builder::setId(const std::string& id) {
-	this->id = id;
-	return *this;
-}
+int main()
+{
+	WSASession Session;
+	TCPSocket Socket;
 
-Packet::Builder Packet::Builder::setOperation(const std::string& operation) {
-	this->operation = operation;
-	return *this;
-}
+	Socket.connection(ipAddress, port);
 
-Packet::Builder Packet::Builder::setTime(const std::string& time) {
-	this->time = time;
-	return *this;
-}
+	requestID(Socket);
+	char buf[64]; const unsigned int bufLeng = 64;
+	Socket.Recv(buf, bufLeng);
+	std::string ID;
+	{
+		packet receivedPacket(buf);
+		ID = receivedPacket.getID();
+	}
 
-Packet::Builder Packet::Builder::setResponse(const std::string& response) {
-	this->response = response;
-	return *this;
-}
+	sendL(Socket, ID);
 
-Packet Packet::Builder::builder() const {
-	return Packet(id, operation, time, response);
-}
+	Socket.Recv(buf, bufLeng);
+	packet receivedPacket(buf);
+	std::string numOfTriels = receivedPacket.getAnswer();
+	unsigned int numOfTrielsInt = std::stoi(numOfTriels);
 
-std::string Packet::getId() const {
-	return id;
-}
+	while (numOfTrielsInt)
+	{
+		std::cout << "Twoja liczba prob to: " << numOfTrielsInt << std::endl;
+		trial(Socket, ID);
 
-std::string Packet::getOperation() const {
-	return operation;
-}
+		Socket.Recv(buf, bufLeng);
+		packet receivedPacket(buf);
+		if (receivedPacket.getAnswer() == "game over")
+		{
+			std::cout << "Przegrales!" << std::endl; break;
+		}
+		if (receivedPacket.getAnswer() == "win")
+		{
+			std::cout << "Wygrales!" << std::endl; break;
+		}
+		if (receivedPacket.getAnswer() == "bad number" &&numOfTrielsInt > 0)
+		{
+			std::cout << "Sprobuj jeszcze raz!" << std::endl; numOfTrielsInt--;
+		}
+	}
 
-std::string Packet::getTime() const {
-	return time;
-}
+	//disconnection(Socket, ID);
 
-std::string Packet::getResponse() const {
-	return response;
-}
+	std::cin.ignore(2);
 
-std::vector<char> Packet::convertToString() const {
-	std::string buffor;
-	buffor += "id#" + id + "|";
-	buffor += "op#" + operation + "|";
-	buffor += "time#" + time + "|";
-	buffor += response;
-
-	buffor.resize(bufforSize);
-
-	std::vector<char>  rt;
-	std::copy(buffor.begin(), buffor.end(), std::back_inserter(rt));
-
-	if(*(rt.end() - 1) == '\0') rt.erase(rt.end() - 1);
-
-	return rt;
-}
-
-
-Packet::~Packet() {}
-
-const char* BadPacketException::what() const throw() {
-	return "Bad or corrupted packet!!!";
+	return 0;
 }
