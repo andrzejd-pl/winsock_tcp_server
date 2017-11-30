@@ -9,10 +9,10 @@ Packet::Packet(std::string id,
 
 Packet::Packet() {}
 
-Packet::Packet(const std::string& rawData) {
+Packet::Packet(const std::vector<char>& rawData) {
 	std::regex expresion("\\|"), sExpresion("#");
 	std::smatch match, sMatch;
-	std::string buffer = rawData;
+	std::string buffer (rawData.begin(), rawData.end());
 
 	if(!std::regex_search(buffer, match, expresion))
 		throw BadPacketException();

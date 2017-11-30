@@ -2,20 +2,19 @@
 #include "WSASession.h"
 #include "TCPSocket.h"
 #include <thread>
-#include "Packet.h"
+#include "Client.h"
 
-void run(TCPSocket* socket, const short id, const int bufforLenght);
+void run(Client* client, const int id);
 
 void main(int argc, char **argv_string) {
 
 	try {
-		unsigned short port = 0;
-		if(argc < 2) {
+		unsigned short port = 2000;
+		/*if(argc < 2) {
 			std::cout << "Podaj numer protu do nasluchiwania: ";
 			std::cin >> port;
 		}
-		else port = atoi(argv_string[1]);
-		int bufforLenght = (argc < 3) ? 6 : atoi(argv_string[2]);
+		else port = atoi(argv_string[1]);*/
 
 		WSASession session;
 		TCPSocket socket;
@@ -24,19 +23,18 @@ void main(int argc, char **argv_string) {
 
 		socket.Listen();
 
-		socket.Accept();
-		//socket.Accept();
+		auto tmp = socket.Accept();
+
+		Client client1(socket);
+		Client client2(socket);
 
 		std::vector<std::thread> clients;
-		clients.push_back(std::thread(&run, &socket, 0, bufforLenght));
-		//clients.push_back(std::thread(&run, &socket, 1, bufforLenght));
+		clients.push_back(std::thread(&run, &client1, 1));
+		clients.push_back(std::thread(&run, &client2, 2));
 
 		for(auto& client : clients) {
 			client.join();
 		}
-
-		socket.Shutdown(0);
-		//socket.Shutdown(1);
 	}
 	catch(const std::exception& ex) {
 		std::cerr << ex.what() << std::endl;
@@ -46,10 +44,6 @@ void main(int argc, char **argv_string) {
 	std::cin.ignore(2);
 }
 
-
-void run(TCPSocket* socket, const short id, const int bufforLenght) {
-	std::string buffor_1 = socket->Recieve(id, bufforLenght);
-	std::cout << buffor_1 << std::endl;
-	std::reverse(buffor_1.begin(), buffor_1.end());
-	socket->Send(id, buffor_1);
+void run(Client* client, const int id) {
+	client->run(id);
 }

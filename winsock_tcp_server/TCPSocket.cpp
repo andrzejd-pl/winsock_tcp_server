@@ -11,9 +11,7 @@ TCPSocket::TCPSocket() {
 
 
 TCPSocket::~TCPSocket() {
-	for(auto& client : clients) {
-		closesocket(client);
-	}
+	closesocket(sock);
 }
 
 void TCPSocket::Bind(unsigned int port) {
@@ -33,39 +31,38 @@ void TCPSocket::Listen() {
 
 }
 
-void TCPSocket::Accept() {
+SOCKET TCPSocket::Accept() {
 	SOCKET client = accept(sock, NULL, NULL);
 	if(client == INVALID_SOCKET)
 		throw std::system_error(WSAGetLastError(), std::system_category(), "Accept failed");
 
-	clients.push_back(client);
+	return client;
 }
 
-std::string TCPSocket::Recieve(const int id, const int& bufforLenght) {
-	std::string buff2;
+std::vector<char> TCPSocket::Recieve(SOCKET client, const int& bufforLenght) {
 	std::vector<char> buff;
 	buff.resize(bufforLenght);
 
-	int ret = recv(clients[id], buff.data(), buff.size(), 0);
+	int ret = recv(client, buff.data(), buff.size(), 0);
 	if(ret < 0)
 		throw std::system_error(WSAGetLastError(), std::system_category(), "Receive failed");
 	if(ret == 0)
 		throw ClosingConnectionException();
 
-
-	return std::string(buff.cbegin(), buff.cend());
+	
+	return buff;
 }
 
-void TCPSocket::Send(const int id, const std::string& data) {
-	int ret = send(clients[id], data.c_str(), data.size(), 0);
+void TCPSocket::Send(SOCKET client, const std::vector<char>& data) {
+	int ret = send(client, data.data(), data.size(), 0);
 	if(ret == SOCKET_ERROR)
 		throw std::system_error(WSAGetLastError(), std::system_category(), "Send failed");
 }
 
-void TCPSocket::Shutdown(const int id) {
-	int ret = shutdown(clients[id], SD_SEND);
+void TCPSocket::Shutdown(SOCKET* client) {
+	int ret = shutdown(*client, SD_SEND);
 	if(ret == SOCKET_ERROR)
 		throw std::system_error(WSAGetLastError(), std::system_category(), "Shutdown failed");
 
-	closesocket(clients[id]);
+	closesocket(*client);
 }

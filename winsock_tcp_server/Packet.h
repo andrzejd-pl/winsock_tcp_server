@@ -17,7 +17,7 @@ class Packet {
 public:
 
 	Packet();
-	Packet(const std::string& rawData);
+	explicit Packet(const std::vector<char>& rawData);
 
 	class Builder {
 		std::string id;
