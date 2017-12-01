@@ -15,6 +15,7 @@ void run(Client* client, const int id) {
 }
 
 int main(int argc, char** argv_str) {
+	std::mutex mutexClog;
 	unsigned port;
 	if(argc < 2) {
 		std::cout << "Port number: ";
@@ -38,8 +39,8 @@ int main(int argc, char** argv_str) {
 				attempt1.lock();
 				attempt2.lock();
 
-				Client client1(socket, attempt1);
-				Client client2(socket, attempt2);
+				Client client1(socket, attempt1, mutexClog);
+				Client client2(socket, attempt2, mutexClog);
 
 				std::vector<std::thread> clients;
 				clients.push_back(std::thread(&run, &client1, id++));
@@ -57,8 +58,9 @@ int main(int argc, char** argv_str) {
 				for(auto& client : clients) {
 					client.join();
 				}
-
+				mutexClog.lock();
 				std::clog << currentTime() << " - Server: next round." << std::endl;
+				mutexClog.unlock();
 			}
 		}
 		catch(const std::exception& ex) {

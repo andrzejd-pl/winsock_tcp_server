@@ -11,22 +11,32 @@ Packet Client::createPacket(Packet::Builder& builder) {
 	return builder.setId(id).setTime(currentTime()).builder();
 }
 
-Client::Client(TCPSocket& socket, std::mutex& mux) : mySocket(socket.Accept()), mutexAttempt(mux) {}
+void Client::log(const std::string& message) {
+	mutexClog.lock();
+	std::clog << message << std::endl;
+	mutexClog.unlock();
+}
+
+std::string Client::createLogMessage(const std::string& message, bool sendOrReceive) {
+	return currentTime() + " - Client " + id + ((sendOrReceive)?(" send: "):(" receive: ")) + message;
+}
+
+Client::Client(TCPSocket& socket, std::mutex& mux, std::mutex& log) : mySocket(socket.Accept()), mutexAttempt(mux), mutexClog(log) {}
 
 void Client::run(const int id) {
 	mutexNumberL.lock();
 	try {
 		Packet p = mySocket.receivePacket();
-		std::clog << currentTime() << " - Client " << id << " send: " << p.convertToString().data() << std::endl;
+		log(createLogMessage(std::string(p.convertToString().data()), true));
 
 		this->id = std::to_string(id);
 
 		// ReSharper disable once CppMsExtBindingRValueToLvalueReference
 		Packet s = createPacket(Packet::Builder().setOperation("GEN"));
-		std::clog << currentTime() << " - Client " << id << " receive: " << s.convertToString().data() << std::endl;
+		log(createLogMessage(std::string(s.convertToString().data()), false));
 		mySocket.sendPacket(s);
 		p = mySocket.receivePacket();
-		std::clog << currentTime() << " - Client " << id << " send: " << p.convertToString().data() << std::endl;
+		log(createLogMessage(std::string(p.convertToString().data()), true));
 
 		numberL = p.getResponse();
 		mutexNumberL.unlock();
@@ -36,14 +46,14 @@ void Client::run(const int id) {
 
 		// ReSharper disable once CppMsExtBindingRValueToLvalueReference
 		s = createPacket(Packet::Builder().setOperation("ATT").setResponse(attempts));
-		std::clog << currentTime() << " - Client " << id << " receive: " << s.convertToString().data() << std::endl;
+		log(createLogMessage(std::string(s.convertToString().data()), false));
 
 		mySocket.sendPacket(s);
 		unsigned numL = stoi(attempts);
 		bool end = false;
 		while(!end) {
 			p = mySocket.receivePacket();
-			std::clog << currentTime() << " - Client " << id << " send: " << p.convertToString().data() << std::endl;
+			log(createLogMessage(std::string(p.convertToString().data()), true));
 
 			std::string answer = p.getResponse();
 			numL--;
@@ -59,21 +69,21 @@ void Client::run(const int id) {
 
 			// ReSharper disable once CppMsExtBindingRValueToLvalueReference
 			s = createPacket(Packet::Builder().setOperation("ANS").setResponse(check == 1 ? "win" : check == 0 ? "bad" : "game_over"));
-			std::clog << currentTime() << " - Client " << id << " receive: " << s.convertToString().data() << std::endl;
+			log(createLogMessage(std::string(s.convertToString().data()), false));
 
 			mySocket.sendPacket(s);
 		}
 
 		while(true) {
 			p = mySocket.receivePacket();
-			std::clog << currentTime() << " - Client " << id << " send: " << p.convertToString().data() << std::endl;
+			log(createLogMessage(std::string(p.convertToString().data()), true));
 		}
 	}
 	catch(const ConnectionClosing& cc) {
-		std::clog << currentTime() << " - Client " << id << ": " << cc.what() << std::endl;
+		log(currentTime() + " - Client " + this->id + ": " + cc.what());
 	}
 	catch(const std::exception& ex) {
-		std::cerr << currentTime() << " - Client " << id << " in mathod run throw exception: " << ex.what() << std::endl;
+		log(currentTime() + " - Client " + this->id + " in method run throw exception: " + ex.what());
 	}
 	mutexAttempt.unlock();
 }
