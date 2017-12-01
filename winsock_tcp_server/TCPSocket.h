@@ -1,29 +1,22 @@
 #pragma once
-
 #include <winsock2.h>
-#include <string>
-#include <vector>
+#include "ClientSocket.h"
 
-#pragma comment(lib, "Ws2_32.lib")
+#pragma comment (lib, "Ws2_32.lib")
 
 class TCPSocket {
 private:
-	SOCKET sock;
+	SOCKET ListenSocket;
+	addrinfo *result = nullptr;
+	addrinfo hints;
 public:
-	TCPSocket();
+	// ReSharper disable once CppNonExplicitConvertingConstructor
+	TCPSocket(unsigned int port);
 	~TCPSocket();
 
-	void Bind(unsigned int port);
+	void Bind();
 	void Listen();
-	SOCKET Accept();
-	std::vector<char> Recieve(SOCKET client, const int& bufforLenght);
-	void Send(SOCKET client, const std::vector<char>& data);
-	void Shutdown(SOCKET* client);
+
+	ClientSocket Accept();
 };
 
-class ClosingConnectionException : public std::exception {
-public:
-	virtual const char* what() const throw() {
-		return "Connection closing...";
-	}
-};

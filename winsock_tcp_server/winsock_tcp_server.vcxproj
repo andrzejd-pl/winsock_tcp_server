@@ -114,6 +114,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Client.cpp" />
+    <ClCompile Include="ClientSocket.cpp" />
+    <ClCompile Include="CurrentTime.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Packet.cpp" />
     <ClCompile Include="TCPSocket.cpp" />
@@ -121,6 +123,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Client.h" />
+    <ClInclude Include="ClientSocket.h" />
+    <ClInclude Include="CurrentTime.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="TCPSocket.h" />
     <ClInclude Include="WSASession.h" />

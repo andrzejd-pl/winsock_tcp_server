@@ -1,68 +1,52 @@
 #include "TCPSocket.h"
-#include <system_error>
-#include <vector>
+#include <ws2tcpip.h>
+#include <string>
 
+TCPSocket::TCPSocket(unsigned int port) {
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	hints.ai_flags = AI_PASSIVE;
 
-TCPSocket::TCPSocket() {
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if(sock == INVALID_SOCKET)
+	// Resolve the server address and port
+	std::string DEFAULT_PORT = std::to_string(port);
+	int iResult = getaddrinfo(nullptr, DEFAULT_PORT.c_str(), &hints, &result);
+	if(iResult != 0)
+		throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
+
+	// Create a SOCKET for connecting to server
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if(ListenSocket == INVALID_SOCKET)
 		throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
 }
 
 
 TCPSocket::~TCPSocket() {
-	closesocket(sock);
+	closesocket(ListenSocket);
 }
 
-void TCPSocket::Bind(unsigned int port) {
-	sockaddr_in add;
-	add.sin_family = AF_INET;
-	add.sin_addr.s_addr = htonl(INADDR_ANY);
-	add.sin_port = htons(port);
-	int ret = bind(sock, reinterpret_cast<SOCKADDR *>(&add), sizeof(add));
-	if(ret == SOCKET_ERROR)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Bind failed");
+// ReSharper disable once CppMemberFunctionMayBeConst
+void TCPSocket::Bind() {
+	// Setup the TCP listening socket
+	int iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if(iResult == SOCKET_ERROR)
+		throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
+
+
+	freeaddrinfo(result);
 }
 
 void TCPSocket::Listen() {
-	int ret = listen(sock, SOMAXCONN);
-	if(ret == SOCKET_ERROR)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Listen failed");
+	int iResult = listen(ListenSocket, SOMAXCONN);
+	if(iResult == SOCKET_ERROR)
+		throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
 
 }
 
-SOCKET TCPSocket::Accept() {
-	SOCKET client = accept(sock, NULL, NULL);
+ClientSocket TCPSocket::Accept() {
+	SOCKET client = accept(ListenSocket, NULL, NULL);
 	if(client == INVALID_SOCKET)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Accept failed");
-
-	return client;
-}
-
-std::vector<char> TCPSocket::Recieve(SOCKET client, const int& bufforLenght) {
-	std::vector<char> buff;
-	buff.resize(bufforLenght);
-
-	int ret = recv(client, buff.data(), buff.size(), 0);
-	if(ret < 0)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Receive failed");
-	if(ret == 0)
-		throw ClosingConnectionException();
-
-	
-	return buff;
-}
-
-void TCPSocket::Send(SOCKET client, const std::vector<char>& data) {
-	int ret = send(client, data.data(), data.size(), 0);
-	if(ret == SOCKET_ERROR)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Send failed");
-}
-
-void TCPSocket::Shutdown(SOCKET* client) {
-	int ret = shutdown(*client, SD_SEND);
-	if(ret == SOCKET_ERROR)
-		throw std::system_error(WSAGetLastError(), std::system_category(), "Shutdown failed");
-
-	closesocket(*client);
+		throw std::system_error(WSAGetLastError(), std::system_category(), "Error opening socket");
+	return ClientSocket(client);
 }

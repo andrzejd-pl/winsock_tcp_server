@@ -1,5 +1,6 @@
 #include "Packet.h"
 #include <regex>
+#include <iostream>
 
 
 Packet::Packet(std::string id,
@@ -9,55 +10,98 @@ Packet::Packet(std::string id,
 
 Packet::Packet() {}
 
+Packet::Packet(const Packet& other) : id(other.id), operation(other.operation), time(other.time), response(other.response) {}
+
+Packet::Packet(Packet&& other) noexcept : id(std::move(other.id)), operation(std::move(other.operation)), time(std::move(other.time)), response(std::move(other.response)) {}
+
+Packet& Packet::operator=(const Packet& other) {
+	if(this == &other)
+		return *this;
+	id = other.id;
+	operation = other.operation;
+	time = other.time;
+	response = other.response;
+	return *this;
+}
+
+Packet& Packet::operator=(Packet&& other) noexcept {
+	if(this == &other)
+		return *this;
+	id = std::move(other.id);
+	operation = std::move(other.operation);
+	time = std::move(other.time);
+	response = std::move(other.response);
+	return *this;
+}
+
 Packet::Packet(const std::vector<char>& rawData) {
-	std::regex expresion("\\|"), sExpresion("#");
-	std::smatch match, sMatch;
-	std::string buffer (rawData.begin(), rawData.end());
+	try {
+		std::regex expresion("\\/"), sExpresion("#");
+		std::smatch match, sMatch;
+		std::string buffer(rawData.begin(), rawData.end());
 
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
-	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
+		if(!std::regex_search(buffer, match, expresion))
 			throw BadPacketException();
+		{
+			std::string prefix = match.prefix().str();
+			if(!std::regex_search(prefix, sMatch, sExpresion))
+				throw BadPacketException();
 
-		if(sMatch.prefix().str() != "id")
+			if(sMatch.prefix().str() != "Id")
+				throw BadPacketException();
+
+			std::string sufix = sMatch.suffix().str();
+			id = sufix;
+		}
+		buffer = match.suffix().str();
+
+		if(!std::regex_search(buffer, match, expresion))
 			throw BadPacketException();
-		
-		std::string sufix = sMatch.suffix().str();
-		id = sufix;
+		{
+			std::string prefix = match.prefix().str();
+			if(!std::regex_search(prefix, sMatch, sExpresion))
+				throw BadPacketException();
+
+			if(sMatch.prefix().str() != "Op")
+				throw BadPacketException();
+
+			std::string sufix = sMatch.suffix().str();
+			operation = sufix;
+		}
+		buffer = match.suffix().str();
+
+		if(!std::regex_search(buffer, match, expresion))
+			throw BadPacketException();
+		{
+			std::string prefix = match.prefix().str();
+			if(!std::regex_search(prefix, sMatch, sExpresion))
+				throw BadPacketException();
+
+			if(sMatch.prefix().str() != "Time")
+				throw BadPacketException();
+
+			std::string sufix = sMatch.suffix().str();
+			time = sufix;
+		}
+
+		buffer = match.suffix().str();
+
+		if(!std::regex_search(buffer, match, expresion))
+			throw BadPacketException();
+		{
+			std::string prefix = match.prefix().str();
+			if(!std::regex_search(prefix, sMatch, sExpresion))
+				throw BadPacketException();
+
+			if(sMatch.prefix().str() != "Odp")
+				throw BadPacketException();
+
+			response = sMatch.suffix().str();
+		}
 	}
-	buffer = match.suffix().str();
-
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
-	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
-			throw BadPacketException();
-		
-		if(sMatch.prefix().str() != "op")
-			throw BadPacketException();
-		
-		std::string sufix = sMatch.suffix().str();
-		operation = sufix;
+	catch(const std::exception& ex) {
+		std::cerr << "Exception in Ctor Packet(const std::vector<char>& rawData): " << ex.what() << std::endl;
 	}
-	buffer = match.suffix().str();
-
-	if(!std::regex_search(buffer, match, expresion))
-		throw BadPacketException();
-	{
-		std::string prefix = match.prefix().str();
-		if(!std::regex_search(prefix, sMatch, sExpresion))
-			throw BadPacketException();
-		
-		if(sMatch.prefix().str() != "time")
-			throw BadPacketException();
-
-		std::string sufix = sMatch.suffix().str();
-		time = sufix;
-	}
-	response = match.suffix().str();
 }
 
 Packet::Builder Packet::Builder::setId(const std::string& id) {
@@ -102,12 +146,10 @@ std::string Packet::getResponse() const {
 
 std::vector<char> Packet::convertToString() const {
 	std::string buffor;
-	buffor += "id#" + id + "|";
-	buffor += "op#" + operation + "|";
-	buffor += "time#" + time + "|";
-	buffor += response;
-
-	buffor.resize(bufforSize);
+	buffor += "Id#" + id + "/";
+	buffor += "Op#" + operation + "/";
+	buffor += "Time#" + time + "/";
+	buffor += "Odp#" + response + "/";
 
 	std::vector<char>  rt;
 	std::copy(buffor.begin(), buffor.end(), std::back_inserter(rt));

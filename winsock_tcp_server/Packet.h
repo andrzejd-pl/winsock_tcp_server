@@ -2,7 +2,7 @@
 #include <vector>
 
 class Packet {
-	const size_t bufforSize = 43;
+	const size_t bufforSize = 65;
 
 	std::string id;
 	std::string operation;
@@ -18,6 +18,13 @@ public:
 
 	Packet();
 	explicit Packet(const std::vector<char>& rawData);
+	Packet(const Packet& other);
+	Packet(Packet&& other) noexcept;
+
+	~Packet();
+
+	Packet& operator=(const Packet& other);
+	Packet& operator=(Packet&& other) noexcept;
 
 	class Builder {
 		std::string id;
@@ -40,8 +47,6 @@ public:
 	std::string getResponse() const;
 
 	std::vector<char> convertToString() const;
-
-	~Packet();
 };
 
 class BadPacketException : public std::exception {
