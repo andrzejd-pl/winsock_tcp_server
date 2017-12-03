@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 #include "WSASession.h"
-#include "TCPSocket.h"
+#include "ListenSocket.h"
 #include "Client.h"
 #include "CurrentTime.h"
 
@@ -29,7 +29,7 @@ int main(int argc, char** argv_str) {
 		try {
 			WSASession session;
 
-			TCPSocket socket(port);
+			ListenSocket socket(port);
 			socket.Bind();
 			socket.Listen();
 

@@ -1,5 +1,5 @@
 #pragma once
-#include "TCPSocket.h"
+#include "ListenSocket.h"
 #include <mutex>
 
 #pragma comment (lib, "Ws2_32.lib")
@@ -21,7 +21,7 @@ class Client {
 	std::string createLogMessage(const std::string& message, bool sendOrReceive);
 public:
 	// ReSharper disable once CppNonExplicitConvertingConstructor
-	Client(TCPSocket& socket, std::mutex& muxNumL, std::mutex& log);
+	Client(ListenSocket& socket, std::mutex& muxNumL, std::mutex& log);
 
 	void run(const int id);
 	std::string getNumberL();

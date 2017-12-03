@@ -21,7 +21,7 @@ std::string Client::createLogMessage(const std::string& message, bool sendOrRece
 	return currentTime() + " - Client " + id + ((sendOrReceive)?(" send: "):(" receive: ")) + message;
 }
 
-Client::Client(TCPSocket& socket, std::mutex& mux, std::mutex& log) : mySocket(socket.Accept()), mutexAttempt(mux), mutexClog(log) {}
+Client::Client(ListenSocket& socket, std::mutex& mux, std::mutex& log) : mySocket(socket.Accept()), mutexAttempt(mux), mutexClog(log) {}
 
 void Client::run(const int id) {
 	mutexNumberL.lock();
